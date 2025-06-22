@@ -53,6 +53,7 @@ def solve_and_export(model, x, residents, output_path, pgys):
 	if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
 		solution = extract_solution(solver, x, residents)
 		write_output(solution, output_path, pgys)
-		return True
+		return True, solver
 	else:
-		return False
+		return False, None
+

@@ -23,11 +23,11 @@ if uploaded_file is not None:
 			try:
 				residents, pgys, leave_dict = parse_input(input_path)
 				model, x, y = build_model(residents, pgys, leave_dict)
-				success = solve_and_export(model, x, residents, output_path, pgys)
+				success, solver = solve_and_export(model, x, residents, output_path, pgys)
 
-				if success:
+				if success and solver is not None:
 					# Show rotation summary in the web app
-					solution = extract_solution(cp_model.CpSolver(), x, residents)
+					solution = extract_solution(solver, x, residents)
 					df = pd.DataFrame(
 						solution, columns=["Resident"] + [f"Block_{i+1}" for i in range(BLOCKS)]
 					)
