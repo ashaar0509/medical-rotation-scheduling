@@ -49,7 +49,7 @@ def write_output(solution, output_path, pgys):
 def solve_and_export(model, x, residents, output_path, pgys):
 	solver = cp_model.CpSolver()
 	status = solver.Solve(model)
-	print("Solver status:", cp_model.StatusName(status))
+
 
 	if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
 		solution = extract_solution(solver, x, residents)
