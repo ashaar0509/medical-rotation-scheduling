@@ -1,8 +1,12 @@
 # -------------------------------
-# Rotation Definitions
+# Global Constants and Parameters
 # -------------------------------
+
 BLOCKS = 13
 
+# -------------------------------
+# Rotation Definitions
+# -------------------------------
 ROTATIONS = [
     "Cardiology", "Endocrine", "Infectious Disease", "AMAU", "Nephrology",
     "Neurology", "CCU", "MICU", "Al Khor", "MOP", "Geriatrics", "Hematology",
@@ -13,10 +17,6 @@ ROTATIONS = [
 
 LEAVE_ROTATION = "LEAVE"
 ROTATIONS.append(LEAVE_ROTATION)
-
-rotation_to_idx = {rot: i for i, rot in enumerate(ROTATIONS)}
-idx_to_rotation = {i: rot for rot, i in rotation_to_idx.items()}
-LEAVE_IDX = rotation_to_idx[LEAVE_ROTATION]
 
 # -------------------------------
 # Leave-Eligible Rotations by PGY
@@ -33,14 +33,14 @@ LEAVE_ALLOWED = {
 # -------------------------------
 GRAD_REQ = {
     "R1": {
-        ("Medical Teams",): (5, 6, 7, 8),
+        ("Medical Teams",): (4, 5, 6, 7),
         ("AMAU",): (1, 2),
         ("Cardiology",): (2,),
         ("Infectious Disease",): (1, 2),
         ("Endocrine",): (1, 2),
     },
     "R2": {
-        ("Senior Rotation",): (1,),
+        ("Senior Rotation",): (1,2),
         ("CCU",): (2,),
         ("MICU",): (2,),
         ("Nephrology",): (1, 2),
@@ -48,14 +48,14 @@ GRAD_REQ = {
         ("Cardiology",): (1,),
         ("Geriatrics",): (1,),
         ("AMAU",): (1, 2),
-        ("Al Khor",): (1,),
+        ("Al Khor",): (0, 1),
         ("MOP",): (1,),
     },
     "R3": {
-        ("Senior Rotation",): (1, 2),
+        ("Senior Rotation",): (2,),
         ("Oncology",): (1,),
         ("Hematology",): (1,),
-        ("Al Wakra",): (1, 2),
+        ("Al Wakra",): (1,),
         ("GI",): (2,),
         ("Pulmonology",): (2,),
         ("Rheumatology",): (1,),
@@ -64,12 +64,16 @@ GRAD_REQ = {
         ("Cardiology", "ED", "Medical Consultation"): (1,),
     },
     "R4": {
-        ("Registrar Rotation",): (4, 5, 6),
-        ("Medical Consultation",): (4, 5, 6),
-        ("Al Wakra",): (0, 1, 2),
-        ("Al Khor",): (0, 1),
-        ("Hematology", "Oncology"): (0, 1),
+        ("Registrar Rotation",): (5, 6),
+        ("Medical Consultation",): (3, 4, 5,),
+        ("Al Wakra",): (1, 2),
+        ("Al Khor",): (1, 2),
+        ("Hematology", "Oncology"): (1, 2),
     },
+    "R4_Chiefs": {
+        ("Registrar Rotation", ): (5, 6, 7),
+        ("Medical Consultation",): (6, 7, 8),
+    }
 }
 
 # -------------------------------
@@ -87,9 +91,8 @@ PER_BLOCK_MIN = {
     "Al Wakra": 9,
     "Medical Consultation": 10,
     "Medical Teams": 20,
-    "Registrar Rotation": 20,
-    "Senior Rotation": 10,
 }
+
 
 # -------------------------------
 # Eligibility Matrix
@@ -108,3 +111,7 @@ group_defs = {
     "Floater": {"Nephrology", "Endocrine"},
     "2ndOnCall": {"GI", "Rheumatology", "Pulmonology"},
 }
+
+rotation_to_idx = {rot: i for i, rot in enumerate(ROTATIONS)}
+idx_to_rotation = {i: rot for rot, i in rotation_to_idx.items()}
+LEAVE_IDX = rotation_to_idx[LEAVE_ROTATION]

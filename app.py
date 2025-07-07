@@ -21,8 +21,10 @@ if uploaded_file is not None:
 				f.write(uploaded_file.getbuffer())
 
 			try:
-				residents, pgys, leave_dict = parse_input(input_path)
-				model, x, y = build_model(residents, pgys, leave_dict)
+				# residents, pgys, leave_dict = parse_input(input_path)
+				residents, pgys, leave_dict, forced_assignments, forbidden_assignments = parse_input(input_path)
+
+				model, x, y = build_model(residents, pgys, leave_dict, forced_assignments, forbidden_assignments)
 				success, solver = solve_and_export(model, x, residents, output_path, pgys)
 
 				if success and solver is not None:
