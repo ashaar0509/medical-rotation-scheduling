@@ -30,14 +30,16 @@ def build_model(residents, pgys, leave_dict, forced_assignments, forbidden_assig
 				eligible = [
 					rotation_to_idx[rot]
 					for rot in ELIGIBILITY[pgy]
-					if rot in rotation_to_idx
+					if rot in rotation_to_idx and
+					rotation_to_idx[rot] != LEAVE_IDX
 				]
 				if (b + 1) in leave_dict[res_id]["half"]:
 					eligible = [
 						rotation_to_idx[rot]
 						for rot in ELIGIBILITY[pgy]
 						if rot in rotation_to_idx and
-						rot in LEAVE_ALLOWED.get(pgy, set())
+						rot in LEAVE_ALLOWED.get(pgy, set()) and
+						rotation_to_idx[rot] != LEAVE_IDX
 					]
 				x[r, b] = model.NewIntVarFromDomain(
 					cp_model.Domain.FromValues(eligible), f"x_{r}_{b}"
