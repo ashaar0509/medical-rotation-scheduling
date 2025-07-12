@@ -37,6 +37,8 @@ def write_output(solution, output_path, pgys):
 	r2 = df[df["PGY"] == "R2"].drop(columns="PGY")
 	r3 = df[df["PGY"] == "R3"].drop(columns="PGY")
 	r4 = df[df["PGY"] == "R4"].drop(columns="PGY")
+	r4_neuro = df[df["PGY"] == "R4_NEURO"].drop(columns="PGY")
+ 
 
 	with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
 		count_df.to_excel(writer, sheet_name="Summary")
@@ -45,6 +47,7 @@ def write_output(solution, output_path, pgys):
 		r2.to_excel(writer, sheet_name="R2", index=False)
 		r3.to_excel(writer, sheet_name="R3", index=False)
 		r4.to_excel(writer, sheet_name="R4", index=False)
+		r4_neuro.to_excel(writer, sheet_name="R4_NEURO", index=False)
 
 def solve_and_export(model, x, residents, output_path, pgys):
 	solver = cp_model.CpSolver()
