@@ -44,8 +44,14 @@ if uploaded_file is not None:
 						melted.groupby(["Rotation", "Block"])
 						.size()
 						.unstack(fill_value=0)
-						.sort_index()
 					)
+
+					# Sort columns by block number (Block_1 → Block_13)
+					ordered_cols = [f"Block_{i+1}" for i in range(BLOCKS)]
+					count_df = count_df.reindex(columns=ordered_cols, fill_value=0)
+
+					# Sort rows by rotation name
+					count_df = count_df.sort_index()
 					st.subheader("📊 Rotation Distribution Summary")
 					st.dataframe(count_df)
 
