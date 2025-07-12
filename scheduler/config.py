@@ -18,6 +18,9 @@ ROTATIONS = [
 LEAVE_ROTATION = "LEAVE"
 ROTATIONS.append(LEAVE_ROTATION)
 
+TRANSFER_ROTATION = "TRANSFER"
+ROTATIONS.append(TRANSFER_ROTATION)
+
 # -------------------------------
 # Leave-Eligible Rotations by PGY
 # -------------------------------
@@ -26,6 +29,7 @@ LEAVE_ALLOWED = {
     "R2": {"MOP", "Nephrology", "AMAU"},
     "R3": {"GI", "Pulmonology", "AMAU"},
     "R4": {"Medical Consultation"},
+    "R_NEURO": {"AMAU",}
 }
 
 # -------------------------------
@@ -73,7 +77,15 @@ GRAD_REQ = {
     "R4_Chiefs": {
         ("Registrar Rotation", ): (5, 6, 7),
         ("Medical Consultation",): (6, 7, 8),
-    }
+    },
+    "R_NEURO": {
+        ("Medical Teams", ): (3, ),
+        ("AMAU",): (3,4,),
+        ("MICU",): (1,),
+        ("Rheumatology",): (1,),
+        ("ED",): (2,),
+        ("TRANSFER",): (2,)
+    },
 }
 
 # -------------------------------

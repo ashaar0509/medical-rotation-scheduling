@@ -181,6 +181,7 @@ def build_model(residents, pgys, leave_dict, forced_assignments, forbidden_assig
 			sum(
 				second_wt[r, b] * y[r, b, rot]
 				for r in range(n)
+				if pgys[r] != "R_NEURO"
 				for rot in group_defs["2ndOnCall"]
 			) >= 60
 		)
@@ -190,6 +191,7 @@ def build_model(residents, pgys, leave_dict, forced_assignments, forbidden_assig
 			sum(
 				y[r, b, rot]
 				for r in range(n)
+				if pgys[r] != "R_NEURO"
 				for rot in group_defs["Floater"]
 			) >= 10
 		)
@@ -219,6 +221,20 @@ def build_model(residents, pgys, leave_dict, forced_assignments, forbidden_assig
 		# Combined condition
 		# model.Add(neuro + r2_in_mop + extra_endo + extra_neph >= 4)
 
+	# -------------------------
+	# R_NEURO Hard Constraints
+	# -------------------------
+	for r in range(n):
+		if pgys[r] == "R_NEURO":
+			# First block must be Medical Teams
+			model.Add(x[r, 0] == rotation_to_idx["Medical Teams"])
+			model.Add(x[r, 1] == rotation_to_idx["Medical Teams"])
+			model.Add(x[r, 2] == rotation_to_idx["Medical Teams"])
+			
+			
+			# Last two blocks must be TRANSFER
+			model.Add(x[r, 11] == rotation_to_idx["TRANSFER"])
+			model.Add(x[r, 12] == rotation_to_idx["TRANSFER"])
 	# -------------------------
 	# Post-Block-3 Medical Teams Coverage
 	# -------------------------
