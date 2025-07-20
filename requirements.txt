@@ -1,5 +1,9 @@
+# For the Streamlit user interface
 streamlit
+
+# For data handling (reading/writing Excel)
 pandas
 openpyxl
+
+# For the CP-SAT optimization model
 ortools
-numpy

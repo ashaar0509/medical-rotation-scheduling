@@ -1,64 +1,96 @@
-import streamlit as st
-from pathlib import Path
+# app.py
+
+"""
+Streamlit User Interface for the Medical Rotation Scheduler.
+
+This script provides a web-based front-end that allows a user to upload an
+input file and trigger the backend scheduling engine. It interacts solely
+with the `RotationScheduler` class, which encapsulates the entire backend logic.
+"""
+
+import os
 import pandas as pd
-from scheduler.parser import parse_input
-from scheduler.config import idx_to_rotation, BLOCKS
-from scheduler.writer import solve_and_export, extract_solution
-from scheduler.model import build_model
+import streamlit as st
+from io import BytesIO
 
+# Import the main orchestrator class and configuration constants
+from scheduler.main import RotationScheduler
+from scheduler.config import APP_DIR, OUTPUT_SCHEDULE_FILE
+
+# --- Page Configuration ---
+st.set_page_config(
+	page_title="Medical Rotation Scheduler",
+	layout="wide"
+)
+
+# --- Helper Function ---
+def to_excel_bytes(schedule_df: pd.DataFrame) -> bytes:
+	"""Converts a DataFrame to an in-memory Excel file (as bytes)."""
+	output = BytesIO()
+	# Use a context manager to ensure the writer is properly closed
+	with pd.ExcelWriter(output, engine='openpyxl') as writer:
+		schedule_df.to_excel(writer, index=False, sheet_name='Schedule')
+	# Retrieve the byte data from the buffer
+	return output.getvalue()
+
+# --- Main Application UI ---
 st.title("Medical Rotation Scheduler")
+st.write(
+	"Upload an Excel file containing resident data, leave requests, and "
+	"pre-assignments to generate an optimized rotation schedule."
+)
 
-uploaded_file = st.file_uploader("Upload input Excel file", type=["xlsx"])
+# --- File Uploader ---
+uploaded_file = st.file_uploader(
+	"Upload Input Excel File", type=["xlsx"]
+)
 
 if uploaded_file is not None:
-	st.success("File uploaded successfully.")
-	if st.button("Run Scheduler"):
-		with st.spinner("Solving rotation schedule..."):
-			input_path = Path("input_temp.xlsx")
-			output_path = Path("output_schedule.xlsx")
+	# Use a temporary directory for uploaded files to keep the root clean
+	temp_dir = os.path.join(APP_DIR, "temp")
+	os.makedirs(temp_dir, exist_ok=True)
+	
+	# Define paths for the temporary input and final output
+	input_path = os.path.join(temp_dir, uploaded_file.name)
+	output_path = os.path.join(temp_dir, OUTPUT_SCHEDULE_FILE)
 
-			with open(input_path, "wb") as f:
-				f.write(uploaded_file.getbuffer())
+	# Save the uploaded file to the temporary location
+	with open(input_path, "wb") as f:
+		f.write(uploaded_file.getbuffer())
 
-			try:
-				# residents, pgys, leave_dict = parse_input(input_path)
-				residents, pgys, leave_dict, forced_assignments, forbidden_assignments = parse_input(input_path)
+	st.success(f"File '{uploaded_file.name}' uploaded successfully.")
+	
+	# --- Scheduler Execution Button ---
+	if st.button("Run Scheduler", type="primary"):
+		with st.spinner("Processing... The model is building and solving the schedule."):
+			# Instantiate the single orchestrator class
+			scheduler = RotationScheduler(
+				input_path=input_path, output_path=output_path
+			)
+			# Run the entire backend process
+			success, schedule_df, summary_df = scheduler.run()
 
-				model, x, y = build_model(residents, pgys, leave_dict, forced_assignments, forbidden_assignments)
-				success, solver = solve_and_export(model, x, residents, output_path, pgys)
+		# --- Results Display ---
+		if success:
+			st.success("A feasible schedule was successfully generated.")
 
-				if success and solver is not None:
-					# Show rotation summary in the web app
-					solution = extract_solution(solver, x, residents)
-					df = pd.DataFrame(
-						solution, columns=["Resident"] + [f"Block_{i+1}" for i in range(BLOCKS)]
-					)
-					df["PGY"] = pgys
-					melted = df.melt(
-						id_vars=["Resident"],
-						value_vars=[f"Block_{i+1}" for i in range(BLOCKS)],
-						var_name="Block",
-						value_name="Rotation"
-					)
-					count_df = (
-						melted.groupby(["Rotation", "Block"])
-						.size()
-						.unstack(fill_value=0)
-					)
+			st.subheader("Rotation Distribution Summary")
+			st.dataframe(summary_df)
 
-					# Sort columns by block number (Block_1 → Block_13)
-					ordered_cols = [f"Block_{i+1}" for i in range(BLOCKS)]
-					count_df = count_df.reindex(columns=ordered_cols, fill_value=0)
+			st.subheader("Full Generated Schedule")
+			st.dataframe(schedule_df)
 
-					# Sort rows by rotation name
-					count_df = count_df.sort_index()
-					st.subheader("📊 Rotation Distribution Summary")
-					st.dataframe(count_df)
-
-					# Download link
-					with open(output_path, "rb") as f:
-						st.download_button("📥 Download Schedule", f, file_name="output_schedule.xlsx")
-				else:
-					st.error("❌ No feasible solution found.")
-			except Exception as e:
-				st.error(f"An error occurred: {e}")
+			# Generate in-memory Excel file for download
+			excel_bytes = to_excel_bytes(schedule_df)
+			st.download_button(
+				label="Download Schedule as Excel",
+				data=excel_bytes,
+				file_name=OUTPUT_SCHEDULE_FILE,
+				mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+			)
+		else:
+			st.error(
+				"No feasible solution could be found. "
+				"This may be due to overly restrictive constraints in the input "
+				"file or the model's configuration."
+			)
