@@ -32,7 +32,7 @@ class RotationScheduler:
 		self.input_path = input_path
 		self.output_path = output_path
 
-	def run(self) -> Tuple[bool, pd.DataFrame, pd.DataFrame, int, int, List[str], List[str], pd.DataFrame]:
+	def run(self) -> Tuple[bool, pd.DataFrame, pd.DataFrame, int, float, List[str], List[str], pd.DataFrame]:
 		"""
 		Executes the full scheduling workflow and returns the results.
 		"""
@@ -62,12 +62,12 @@ class RotationScheduler:
 				max_possible_score=model_builder.max_possible_score,
 				output_path=self.output_path
 			)
-			schedule_df, summary_df, final_score, max_score, satisfied, unsatisfied, log_df = writer.process_and_write_solution()
+			schedule_df, summary_df, raw_score, normalized_score, satisfied, unsatisfied, log_df = writer.process_and_write_solution()
 			
-			return True, schedule_df, summary_df, final_score, max_score, satisfied, unsatisfied, log_df
+			return True, schedule_df, summary_df, raw_score, normalized_score, satisfied, unsatisfied, log_df
 		else:
 			print("Step 4: No feasible solution found.")
-			return False, pd.DataFrame(), pd.DataFrame(), 0, 0, []
+			return False, pd.DataFrame(), pd.DataFrame(), 0, 0.0, [], [], pd.DataFrame()
 
 if __name__ == '__main__':
 	print("--- Running Scheduler in Standalone Mode ---")
@@ -77,7 +77,7 @@ if __name__ == '__main__':
 	print(f"Using default output: {default_output}")
 	
 	scheduler = RotationScheduler(input_path=default_input, output_path=default_output)
-	success, schedule_df, summary_df, final_score, max_score, satisfied, unsatisfied, log_df = scheduler.run()
+	success, schedule_df, summary_df, raw_score, normalized_score, satisfied, unsatisfied, log_df = scheduler.run()
 
 	if success:
 		print("--- Schedule finished successfully. ---")

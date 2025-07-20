@@ -16,7 +16,6 @@ from typing import Any, Dict, List, Set, Tuple
 from scheduler.config import (
 	NUM_BLOCKS,
 	GRADUATION_REQUIREMENTS,
-	LEAVE_ELIGIBLE_ROTATIONS,
 	ALL_ROTATIONS,
 	LEAVE_ROTATION,
 	TRANSFER_ROTATION
@@ -56,11 +55,10 @@ class RotationDataParser:
 
 		# Special index for the LEAVE rotation
 		self.leave_idx: int = self.rotation_to_idx[LEAVE_ROTATION]
-
-		# Dictionaries for storing specific constraints and rules
 		self.leave_dict: Dict[str, Dict[str, Any]] = {}
-		self.forced_assignments: Dict[Tuple[int, int], str] = {}
-		self.forbidden_assignments: Dict[Tuple[int, int], str] = {}
+
+		self.forced_assignments: Dict[Tuple[int, int], List[str]] = {}
+		self.forbidden_assignments: Dict[Tuple[int, int], List[str]] = {}
 		self.eligibility_map: Dict[str, Set[str]] = {}
 
 		# --- Initialization ---
@@ -134,8 +132,8 @@ class RotationDataParser:
 
 	def _parse_leave_requests(self, resident_id: str, row: Any) -> None:
 		"""
-		Parses full and half-block leave requests for a single resident.
-
+		Parses full and half-block leave requests for a single resident,
+		including the specific half of the block.
 		Args:
 			resident_id: The unique identifier for the resident.
 			row: A row from the input DataFrame (as a named tuple).
@@ -143,7 +141,10 @@ class RotationDataParser:
 		block1 = int(row.Leave1Block)
 		block2 = int(row.Leave2Block)
 		
-		full_leave_blocks, half_leave_blocks = set(), set()
+		full_leave_blocks = set()
+		# --- THIS IS THE CHANGE ---
+		# We now use a dictionary to store the block number and the specific half.
+		half_leave_details = {}
 
 		if block1 and (block1 == block2):
 			# If both leave blocks are the same, it's a full-block leave.
@@ -151,16 +152,16 @@ class RotationDataParser:
 		else:
 			# Otherwise, they are treated as separate half-block leaves.
 			if block1:
-				half_leave_blocks.add(block1)
+				half_leave_details[block1] = row.Leave1Half
 			if block2:
-				half_leave_blocks.add(block2)
+				half_leave_details[block2] = row.Leave2Half
 		
 		self.leave_dict[resident_id] = {
 			"pgy": row.PGY,
 			"full": full_leave_blocks,
-			"half": half_leave_blocks
+			"half": half_leave_details # Store the new dictionary
 		}
-
+  
 	def _parse_block_assignments(
 		self, resident_idx: int, row: Any
 	) -> None:
@@ -181,13 +182,33 @@ class RotationDataParser:
 			# Model blocks are 0-indexed, so we subtract 1.
 			assignment_key = (resident_idx, b - 1)
 			
-			if assignment_str.startswith("!"):
-				# A '!' prefix indicates a forbidden assignment.
-				forbidden_rotation = assignment_str[1:]
-				self.forbidden_assignments[assignment_key] = forbidden_rotation
-			else:
-				# Otherwise, it is a forced assignment.
-				self.forced_assignments[assignment_key] = assignment_str
+			cell_forced = []
+			cell_forbidden = []
+   
+			assignments = [item.strip() for item in assignment_str.split(',')]
+   
+			for assignment in assignments:
+				if assignment.startswith('!'):
+					forbidden_rot = assignment.lstrip('!').strip()
+					if forbidden_rot and forbidden_rot not in cell_forbidden:
+						cell_forbidden.append(forbidden_rot)
+				else:
+					# Forced OR assignment.
+					if assignment and assignment not in cell_forced:
+						cell_forced.append(assignment)
+			
+			if cell_forced and cell_forbidden:
+				raise ValueError(
+					f"Input Error: Invalid assignment for resident '{row.ID}' in Block {b}. "
+					f"The cell '{assignment_str}' contains both forced and forbidden rotations, "
+					"which is not a valid state."
+				)
+    
+			if cell_forced:
+				self.forced_assignments[assignment_key] = cell_forced
+			
+			if cell_forbidden:
+				self.forbidden_assignments[assignment_key] = cell_forbidden
 
 	def _build_eligibility_map(self) -> None:
 		"""

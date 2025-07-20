@@ -57,7 +57,7 @@ if uploaded_file is not None:
 				input_path=input_path, output_path=output_path
 			)
 			# Unpack all the new return values from the updated scheduler
-			success, schedule_df, summary_df, final_score, max_score, satisfied, unsatisfied, log_df = scheduler.run()
+			success, schedule_df, summary_df, raw_score, normalized_score, satisfied, unsatisfied, log_df = scheduler.run()
 
 		if success:
 			st.success("A feasible schedule was successfully generated.")
@@ -66,14 +66,15 @@ if uploaded_file is not None:
 			st.subheader("Objective Score Summary")
 			col1, col2 = st.columns(2)
 			col1.metric(
-				label="Score Achieved",
-				value=f"{final_score}",
-				help="The sum of all applied rewards (+) and penalties (-)."
+				label="Normalized Schedule Quality",
+				value=f"{normalized_score:.1%}",
+				help="A score of 100% indicates all possible rewards were achieved. Penalties can lower this score."
 			)
+			# Display the raw score for reference
 			col2.metric(
-				label="Maximum Possible Score",
-				value=f"{max_score}",
-				help="The best possible score if all rewards are achieved."
+				label="Raw Score",
+				value=f"{raw_score}",
+				help="The sum of all rewards (+) and penalties (-)."
 			)
 
 			# --- Download Button for the Constraint Log ---

@@ -9,6 +9,7 @@ the optimization objective based on the parsed input data and static configs.
 """
 
 from typing import Any, List, Dict, Tuple
+from ortools.sat.python import cp_model
 
 from scheduler.parser import RotationDataParser
 from scheduler.config import (
@@ -39,16 +40,6 @@ class ScheduleModelBuilder:
 			parsed_data: An instance of RotationDataParser containing all
 						 the necessary input data and mappings.
 		"""
-		# We are violating PEP 8 here by importing a file that is not used.
-		# However, this is necessary for the type hints to work correctly.
-		# We can remove this import if we use string forward references.
-		# For now, we will keep it as is.
-		# This is a good example of how to handle a situation where a linter
-		# might complain about something that is necessary for the code to work.
-		# We can add a comment to explain why we are doing this.
-		# This is a good way to document your code and make it easier for others
-		# to understand.
-		from ortools.sat.python import cp_model
 		self.data = parsed_data
 		self.model = cp_model.CpModel()
 
@@ -146,15 +137,28 @@ class ScheduleModelBuilder:
 
 	def _add_hard_forced_and_forbidden_assignments(self) -> None:
 		"""Applies pre-assignments specified in the input file."""
-		for (r, b), rot_name in self.data.forced_assignments.items():
-			rot_idx = self.data.rotation_to_idx.get(rot_name)
-			if rot_idx is not None:
-				self.model.Add(self.x[r, b] == rot_idx)
+        # Handle forced assignments, which is now a list representing an OR condition.
+		for (r, b), rot_list in self.data.forced_assignments.items():
+			# Convert the list of rotation names to a list of rotation indices.
+			allowed_indices = [
+				self.data.rotation_to_idx[rot_name]
+				for rot_name in rot_list if rot_name in self.data.rotation_to_idx
+			]
+			
+			if allowed_indices:
+				# This constraint forces x[r, b] to be one of the values in the list.
+				# It's the mathematical equivalent of an OR condition.
+				self.model.AddAllowedAssignments(
+					[self.x[r, b]],
+					[[idx] for idx in allowed_indices]
+				)
 
-		for (r, b), rot_name in self.data.forbidden_assignments.items():
-			rot_idx = self.data.rotation_to_idx.get(rot_name)
-			if rot_idx is not None:
-				self.model.Add(self.x[r, b] != rot_idx)
+		# Handle forbidden assignments
+		for (r, b), rot_list in self.data.forbidden_assignments.items():
+			for rot_name in rot_list:
+				rot_idx = self.data.rotation_to_idx.get(rot_name)
+				if rot_idx is not None:
+					self.model.Add(self.x[r, b] != rot_idx)
 
 	def _add_hard_graduation_requirements(self) -> None:
 		"""Ensures each resident meets their PGY-specific block counts."""
@@ -210,6 +214,25 @@ class ScheduleModelBuilder:
 				) >= 10
 			)
 
+		# --- ARCHIVED ALTERNATIVE COVERAGE LOGIC ---
+		# The following block represents an alternative method for calculating
+		# minimum staffing, using pre-calculated weights for half-leave blocks.
+		# It is preserved here for future reference.
+		#
+		# half_leave_weights = {
+		#     (r, b): 1 if (b + 1) in self.data.leave_dict[self.data.residents[r]]["half"] else 2
+		#     for r in range(self.data.num_residents)
+		#     for b in range(NUM_BLOCKS)
+		# }
+		#
+		# for b in range(NUM_BLOCKS):
+		#   for rot, min_staff in PER_BLOCK_MINIMUM_STAFFING.items():
+		#       self.model.Add(
+		#           sum(half_leave_weights[r, b] * self.y[r, b, rot] for r in range(self.data.num_residents))
+		#           >= 2 * min_staff
+		#       )
+		# --- END OF ARCHIVED LOGIC ---
+		
 	def _add_hard_pgy_specific_rules(self) -> None:
 		"""Adds rules specific to PGY levels, like first-block assignments."""
 		med_teams_idx = self.data.rotation_to_idx["Medical Teams"]
@@ -243,7 +266,7 @@ class ScheduleModelBuilder:
 		for r_idx in range(self.data.num_residents):
 			for b_idx in [1, 3, 5, 7, 9]:
 				if b_idx < NUM_BLOCKS - 1:
-					for rot in ["AMAU", "CCU"]:
+					for rot in ["MICU", "CCU"]:
 						self.model.AddBoolOr([
 							self.y[r_idx, b_idx, rot].Not(),
 							self.y[r_idx, b_idx + 1, rot].Not()
@@ -271,8 +294,52 @@ class ScheduleModelBuilder:
 		self._add_soft_r2_rewards()
 		self._add_soft_r3_penalties()
 		self._add_soft_r4_penalties()
+		self._add_soft_hem_onc_preference()
 		self.model.Maximize(sum(self.objective_terms))
 
+	def _add_soft_hem_onc_preference(self) -> None:
+		"""
+		Rewards schedules where Hematology and Oncology are consecutive.
+		This applies to any resident taking both, regardless of PGY.
+		"""
+		for r_idx in range(self.data.num_residents):
+			# This preference only makes sense for residents eligible for both.
+			is_eligible = (
+				"Hematology" in self.data.eligibility_map[self.data.pgys[r_idx]] and
+				"Oncology" in self.data.eligibility_map[self.data.pgys[r_idx]]
+			)
+			if not is_eligible:
+				continue
+
+			res_id = self.data.residents[r_idx]
+			for b_idx in range(NUM_BLOCKS - 1):
+				# Pattern 1: Hema -> Onco
+				hema_onco = self.model.NewBoolVar(f"hema_onco_{r_idx}_{b_idx}")
+				self.model.AddBoolAnd([
+					self.y[r_idx, b_idx, "Hematology"],
+					self.y[r_idx, b_idx + 1, "Oncology"]
+				]).OnlyEnforceIf(hema_onco)
+
+				# Pattern 2: Onco -> Hema
+				onco_hema = self.model.NewBoolVar(f"onco_hema_{r_idx}_{b_idx}")
+				self.model.AddBoolAnd([
+					self.y[r_idx, b_idx, "Oncology"],
+					self.y[r_idx, b_idx + 1, "Hematology"]
+				]).OnlyEnforceIf(onco_hema)
+				
+				# Combined condition for either pattern
+				is_consecutive = self.model.NewBoolVar(f"hem_onc_consecutive_{r_idx}_{b_idx}")
+				self.model.AddBoolOr([hema_onco, onco_hema]).OnlyEnforceIf(is_consecutive)
+				self.model.AddBoolAnd([hema_onco.Not(), onco_hema.Not()]).OnlyEnforceIf(is_consecutive.Not())
+
+				# Add to objective and tracking map
+				key = f"REWARD: {res_id} has consecutive Hematology/Oncology (Blocks {b_idx+1}-{b_idx+2})"
+				score = 2 * REWARD_WEIGHT
+				self.soft_constraints_map[key] = is_consecutive
+				self.objective_terms.append(score * is_consecutive)
+				if score > 0:
+					self.max_possible_score += score
+					
 	def _add_soft_r1_penalties(self) -> None:
 		"""Penalizes undesirable schedules for R1 residents."""
 		for r_idx in range(self.data.num_residents):
