@@ -1,0 +1,6 @@
+# Python
+__pycache__/
+*.pyc
+
+# Development container cache and settings
+.devcontainer/
