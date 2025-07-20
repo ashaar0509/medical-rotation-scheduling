@@ -7,10 +7,6 @@ from scheduler.parser import RotationDataParser
 from scheduler.config import NUM_BLOCKS, REWARD_WEIGHT, PENALTY_WEIGHT
 
 class SolutionWriter:
-    """
-    Handles the extraction, formatting, and export of the solver's solution.
-    """
-
     def __init__(
         self,
         solver: Any,
@@ -29,25 +25,14 @@ class SolutionWriter:
         self.schedule_df = self._extract_schedule_dataframe()
 
     def process_and_write_solution(self) -> Tuple[pd.DataFrame, pd.DataFrame, int, float, List[str], List[str], pd.DataFrame]:
-        """
-        Analyzes the solution and generates all necessary outputs.
-        
-        Returns:
-            A tuple containing the schedule, summary, raw score, normalized score,
-            and lists of satisfied/unsatisfied constraints.
-        """
         summary_df = self._create_summary_dataframe()
         raw_score, normalized_score, satisfied, unsatisfied, log_df = self._analyze_soft_constraints()
         
         self._write_to_excel(summary_df, log_df)
         
-        # Note: We are returning both the raw score and the new normalized score.
         return self.schedule_df, summary_df, raw_score, normalized_score, satisfied, unsatisfied, log_df
 
     def _analyze_soft_constraints(self) -> Tuple[int, float, List[str], List[str], pd.DataFrame]:
-        """
-        Analyzes soft constraints to calculate scores and create logs.
-        """
         raw_score = 0
         satisfied_constraints = []
         unsatisfied_constraints = []
@@ -81,12 +66,9 @@ class SolutionWriter:
                 "Score Contribution": score_contribution
             })
         
-        # --- NORMALIZATION LOGIC ---
         if self.max_possible_score > 0:
-            # Normalize the score to a 0-1 scale. Penalties can make it negative.
             normalized_score = raw_score / self.max_possible_score
         else:
-            # If there are no rewards, a perfect score (no penalties) is 1.0.
             normalized_score = 1.0 if raw_score == 0 else 0.0
 
         log_df = pd.DataFrame(log_records)
@@ -114,7 +96,6 @@ class SolutionWriter:
                 rotation_name = self.data.idx_to_rotation[rotation_idx]
                 row_data[f"Block_{b_idx + 1}"] = rotation_name
             solution_rows.append(row_data)
-
         df = pd.DataFrame(solution_rows)
         df["PGY"] = self.data.pgys
         return df
