@@ -4,3 +4,9 @@ __pycache__/
 
 # Development container cache and settings
 .devcontainer/
+
+# macOS Finder metadata
+.DS_Store
+
+# Temporary Office files
+~$*
