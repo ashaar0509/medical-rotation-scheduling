@@ -1,115 +1,197 @@
 # app.py
 
 """
-Streamlit User Interface for the Medical Rotation Scheduler.
+Streamlit Web Interface for the Medical Residency Rotation Scheduler.
+
+Launch with:
+    streamlit run app.py
+
+The same scheduling pipeline is available headlessly via the command line:
+    python -m scheduler.main [--input PATH] [--output PATH]
 """
 
 import os
 import pandas as pd
 import streamlit as st
-from io import BytesIO
 
 from scheduler.main import RotationScheduler
-from scheduler.config import APP_DIR, OUTPUT_SCHEDULE_FILE
-
-# --- Page Configuration ---
-st.set_page_config(
-	page_title="Medical Rotation Scheduler",
-	layout="wide"
+from scheduler.config import (
+    APP_DIR,
+    OUTPUT_SCHEDULE_FILE,
+    CLINICAL_ROTATIONS,
+    NUM_BLOCKS,
 )
 
-# --- Helper Functions ---
-def to_excel_bytes(file_path: str) -> bytes:
-	"""Reads a generated Excel file from disk and returns its byte content."""
-	with open(file_path, "rb") as f:
-		return f.read()
+# ── Page configuration ────────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="Medical Rotation Scheduler",
+    page_icon="🏥",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
-def convert_df_to_csv_bytes(df: pd.DataFrame) -> bytes:
-	"""Converts a DataFrame to CSV format in memory for downloading."""
-	return df.to_csv(index=False).encode('utf-8')
+# ── Sidebar ───────────────────────────────────────────────────────────────────
+with st.sidebar:
+    st.title("🏥 Rotation Scheduler")
+    st.markdown(
+        "Automated medical residency scheduling using **Google OR-Tools CP-SAT**."
+    )
+    st.divider()
 
-# --- Main App UI ---
-st.title("Medical Rotation Scheduler 🗓️")
-st.write(
-	"Upload an Excel file with resident data to generate an optimized rotation schedule. "
-	"The model will satisfy all hard constraints and attempt to maximize a score based on soft preferences."
+    st.markdown("**How to use**")
+    st.markdown(
+        "1. Upload your resident input `.xlsx` file.\n"
+        "2. Click **Run Scheduler**.\n"
+        "3. Review results and download the report."
+    )
+    st.divider()
+
+    st.markdown("**Resources**")
+    st.markdown(
+        "- [Technical Report](docs/TECHNICAL_REPORT.md)\n"
+        "- [GitHub Repository](https://github.com/ashaar0509/medical-rotation-scheduling)\n"
+        "- Sample input files are in `sample_data/`"
+    )
+    st.divider()
+
+    st.caption(
+        "Built by Abdullah Shaar · HBKU"
+    )
+
+
+# ── Helper functions ──────────────────────────────────────────────────────────
+def _read_excel_bytes(file_path: str) -> bytes:
+    """Read a generated Excel file from disk and return its raw bytes."""
+    with open(file_path, "rb") as f:
+        return f.read()
+
+
+def _df_to_csv_bytes(df: pd.DataFrame) -> bytes:
+    """Serialise a DataFrame to UTF-8 CSV bytes."""
+    return df.to_csv(index=False).encode("utf-8")
+
+
+# ── Main page ─────────────────────────────────────────────────────────────────
+st.title("Medical Residency Rotation Scheduler")
+st.markdown(
+    "Upload a resident input file to generate an optimised 13-block annual schedule. "
+    "The solver satisfies all hard constraints and maximises a quality score over soft preferences."
 )
 
 uploaded_file = st.file_uploader(
-	"Upload Input Excel File", type=["xlsx"]
+    "Upload resident input file (.xlsx)",
+    type=["xlsx"],
+    help="See the sample files in the `sample_data/` directory for the expected format.",
 )
 
 if uploaded_file is not None:
-	temp_dir = os.path.join(APP_DIR, "temp")
-	os.makedirs(temp_dir, exist_ok=True)
-	
-	input_path = os.path.join(temp_dir, uploaded_file.name)
-	output_path = os.path.join(temp_dir, OUTPUT_SCHEDULE_FILE)
+    # Save uploaded file to a temp directory
+    temp_dir = os.path.join(APP_DIR, "temp")
+    os.makedirs(temp_dir, exist_ok=True)
+    input_path  = os.path.join(temp_dir, uploaded_file.name)
+    output_path = os.path.join(temp_dir, OUTPUT_SCHEDULE_FILE)
 
-	with open(input_path, "wb") as f:
-		f.write(uploaded_file.getbuffer())
+    with open(input_path, "wb") as f:
+        f.write(uploaded_file.getbuffer())
 
-	st.success(f"File '{uploaded_file.name}' uploaded successfully.")
-	
-	if st.button("Run Scheduler", type="primary"):
-		with st.spinner("Processing... The model is building and solving the schedule. This may take a moment."):
-			scheduler = RotationScheduler(
-				input_path=input_path, output_path=output_path
-			)
-			# Unpack all the new return values from the updated scheduler
-			success, schedule_df, summary_df, raw_score, normalized_score, satisfied, unsatisfied, log_df = scheduler.run()
+    st.success(f"✓ **{uploaded_file.name}** uploaded successfully.")
 
-		if success:
-			st.success("A feasible schedule was successfully generated.")
+    if st.button("Run Scheduler", type="primary", use_container_width=False):
+        with st.spinner("Solving… This may take a moment."):
+            scheduler = RotationScheduler(
+                input_path=input_path,
+                output_path=output_path,
+            )
+            (
+                success, schedule_df, summary_df,
+                raw_score, normalized_score,
+                satisfied, unsatisfied, log_df,
+            ) = scheduler.run()
 
-			# --- Objective Score Display ---
-			st.subheader("Objective Score Summary")
-			col1, col2 = st.columns(2)
-			col1.metric(
-				label="Normalized Schedule Quality",
-				value=f"{normalized_score:.1%}",
-				help="A score of 100% indicates all possible rewards were achieved. Penalties can lower this score."
-			)
-			# Display the raw score for reference
-			col2.metric(
-				label="Raw Score",
-				value=f"{raw_score}",
-				help="The sum of all rewards (+) and penalties (-)."
-			)
+        # ── Results ──────────────────────────────────────────────────────────
+        if not success:
+            st.error(
+                "No feasible solution found. "
+                "This is usually caused by conflicting pre-assignments or over-constrained "
+                "leave periods. Check `scheduler/config.py` and the input file."
+            )
+            st.stop()
 
-			# --- Download Button for the Constraint Log ---
-			st.download_button(
-				label="Download Full Constraint Log (.csv)",
-				data=convert_df_to_csv_bytes(log_df),
-				file_name="objective_log.csv",
-				mime="text/csv",
-			)
-			
-			# --- Display for Satisfied vs. Unsatisfied Constraints ---
-			with st.expander("Show Details of Applied and Missed Soft Constraints"):
-				st.write("#### Satisfied Constraints (Rewards Gained & Penalties Incurred)")
-				st.text_area("Satisfied", "\n".join(satisfied), height=200, key="satisfied_log")
-				
-				st.write("#### Unsatisfied Constraints (Rewards Missed & Penalties Avoided)")
-				st.text_area("Unsatisfied", "\n".join(unsatisfied), height=200, key="unsatisfied_log")
+        st.success("Schedule generated successfully.")
+        st.divider()
 
-			# --- DataFrames for Schedule and Summary ---
-			st.subheader("Rotation Distribution Summary")
-			st.dataframe(summary_df)
+        # Quality score metrics
+        st.subheader("Schedule Quality")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric(
+            "Normalized Quality",
+            f"{normalized_score:.1%}",
+            help="100% means all rewards were achieved with no penalties.",
+        )
+        col2.metric(
+            "Raw Score",
+            raw_score,
+            help="Sum of all reward (+) and penalty (−) contributions.",
+        )
+        col3.metric("Constraints Met", len(satisfied))
+        col4.metric("Constraints Missed", len(unsatisfied))
 
-			st.subheader("Full Generated Schedule")
-			st.dataframe(schedule_df)
+        st.divider()
 
-			# --- Download Button for the Main Schedule ---
-			excel_bytes = to_excel_bytes(output_path)
-			st.download_button(
-				label="Download Full Schedule as Excel",
-				data=excel_bytes,
-				file_name=OUTPUT_SCHEDULE_FILE,
-				mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-			)
-		else:
-			st.error(
-				"No feasible solution could be found. This may be due to overly restrictive constraints "
-				"in the input file or the model's configuration."
-			)
+        # Downloads
+        st.subheader("Downloads")
+        dl_col1, dl_col2 = st.columns(2)
+        with dl_col1:
+            st.download_button(
+                label="⬇ Download Full Schedule (.xlsx)",
+                data=_read_excel_bytes(output_path),
+                file_name=OUTPUT_SCHEDULE_FILE,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
+        with dl_col2:
+            st.download_button(
+                label="⬇ Download Constraint Log (.csv)",
+                data=_df_to_csv_bytes(log_df),
+                file_name="objective_log.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+
+        st.divider()
+
+        # Soft constraint details
+        with st.expander("Soft Constraint Details", expanded=False):
+            tab1, tab2 = st.tabs(["Active Constraints", "Inactive Constraints"])
+            with tab1:
+                st.text_area(
+                    "Rewards gained & penalties incurred",
+                    "\n".join(satisfied),
+                    height=220,
+                    key="tab_satisfied",
+                )
+            with tab2:
+                st.text_area(
+                    "Rewards missed & penalties avoided",
+                    "\n".join(unsatisfied),
+                    height=220,
+                    key="tab_unsatisfied",
+                )
+
+        st.divider()
+
+        # Staffing summary table
+        st.subheader("Staffing Summary (Residents per Rotation per Block)")
+        st.dataframe(summary_df, use_container_width=True)
+
+        st.divider()
+
+        # Full schedule table with PGY filter
+        st.subheader("Generated Schedule")
+        pgy_options = ["All"] + sorted(schedule_df["PGY"].unique().tolist())
+        selected_pgy = st.selectbox("Filter by PGY level", pgy_options)
+        display_df = (
+            schedule_df if selected_pgy == "All"
+            else schedule_df[schedule_df["PGY"] == selected_pgy]
+        )
+        st.dataframe(display_df.reset_index(drop=True), use_container_width=True)

@@ -25,7 +25,7 @@ APP_DIR: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SAMPLE_DATA_DIR: str = os.path.join(APP_DIR, "sample_data")
 
 # Default input and output filenames.
-INPUT_FILE: str = "real_example_input.xlsx"
+INPUT_FILE: str = "hmc_im_residency_sample_input.xlsx"
 OUTPUT_SCHEDULE_FILE: str = "output_schedule.xlsx"
 OUTPUT_DISTRIBUTION_FILE: str = "rotation_distribution.xlsx"
 
