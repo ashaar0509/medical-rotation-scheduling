@@ -1,6 +1,6 @@
 # Medical Residency Rotation Scheduler
 
-![Python](https://img.shields.io/badge/python-3.9+-blue.svg)
+![Python](https://img.shields.io/badge/python-3.11-blue.svg)
 ![OR-Tools](https://img.shields.io/badge/solver-OR--Tools%20CP--SAT-orange.svg)
 ![Streamlit](https://img.shields.io/badge/UI-Streamlit-red.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
@@ -65,26 +65,13 @@ medical-rotation-scheduling/
 
 ## Installation
 
-> It is strongly recommended to use a virtual environment.
-
 **1. Clone the repository**
 ```bash
 git clone https://github.com/ashaar0509/medical-rotation-scheduling.git
 cd medical-rotation-scheduling
 ```
 
-**2. Create and activate a virtual environment**
-```bash
-# macOS / Linux
-python3 -m venv venv
-source venv/bin/activate
-
-# Windows
-python -m venv venv
-venv\Scripts\activate
-```
-
-**3. Create and activate the conda environment**
+**2. Create and activate the conda environment**
 ```bash
 conda env create -f environment.yml
 conda activate med-rotation-scheduler

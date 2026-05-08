@@ -15,12 +15,7 @@ import pandas as pd
 import streamlit as st
 
 from scheduler.main import RotationScheduler
-from scheduler.config import (
-    APP_DIR,
-    OUTPUT_SCHEDULE_FILE,
-    CLINICAL_ROTATIONS,
-    NUM_BLOCKS,
-)
+from scheduler.config import APP_DIR, OUTPUT_SCHEDULE_FILE
 
 # ── Page configuration ────────────────────────────────────────────────────────
 st.set_page_config(
@@ -48,7 +43,7 @@ with st.sidebar:
 
     st.markdown("**Resources**")
     st.markdown(
-        "- [Technical Report](docs/TECHNICAL_REPORT.md)\n"
+        "- [Technical Report](https://github.com/ashaar0509/medical-rotation-scheduling/blob/main/docs/TECHNICAL_REPORT.md)\n"
         "- [GitHub Repository](https://github.com/ashaar0509/medical-rotation-scheduling)\n"
         "- Sample input files are in `sample_data/`"
     )
